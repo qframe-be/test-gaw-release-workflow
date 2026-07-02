@@ -1,0 +1,201 @@
+name: Publish Release Impact Docs
+
+# Second-stage workflow: runs after a CAB impact assessment PR (produced by
+# the first-stage release-workflow.lock.yml) has been reviewed and merged
+# into the default branch. Treats impact.json as the publish marker.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.releases/cab/**/impact.json'
+
+# Least-privilege by default. The publish job elevates only what it needs
+# via the protected `docs-publish` environment, not via broader permissions.
+permissions:
+  contents: read
+
+# Avoid duplicate/overlapping publishes for the same branch.
+concurrency:
+  group: publish-release-impact-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    name: Discover changed impact documents
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.changed.outputs.matrix }}
+      has_matches: ${{ steps.changed.outputs.has_matches }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine changed impact.json files
+        id: changed
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          before="${{ github.event.before }}"
+          after="${{ github.event.after }}"
+          zero="0000000000000000000000000000000000000000"
+
+          if [ "$before" = "$zero" ] || [ -z "$before" ]; then
+            echo "No previous commit (new branch or force-push base). Diffing against the first parent of ${after}." >&2
+            base_ref="${after}~1"
+            if git cat-file -e "${base_ref}" 2>/dev/null; then
+              range_files=$(git diff --name-only --diff-filter=AM "${base_ref}" "${after}")
+            else
+              echo "No parent commit found either; treating all tracked files as candidates." >&2
+              range_files=$(git ls-tree -r --name-only "${after}")
+            fi
+          else
+            range_files=$(git diff --name-only --diff-filter=AM "${before}" "${after}")
+          fi
+
+          echo "Changed (added/modified) files in push range:" >&2
+          echo "${range_files}" >&2
+
+          # Strict match: .releases/cab/<anything>/impact.json
+          matched=$(printf '%s\n' "${range_files}" | grep -E '^\.releases/cab/.+/impact\.json$' || true)
+
+          if [ -z "${matched}" ]; then
+            echo "No changed impact.json files matched the publish pattern." >&2
+            echo "matrix=[]" >> "$GITHUB_OUTPUT"
+            echo "has_matches=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Matched impact.json files to publish:" >&2
+          printf '%s\n' "${matched}" >&2
+
+          # Build the JSON matrix without any extra dependency (jq/python):
+          # a simple bash loop producing {"include":[{"impact_path": "..."}]}.
+          entries=""
+          while IFS= read -r path; do
+            [ -z "${path}" ] && continue
+            escaped=$(printf '%s' "${path}" | sed 's/\\/\\\\/g; s/"/\\"/g')
+            if [ -n "${entries}" ]; then
+              entries="${entries},"
+            fi
+            entries="${entries}{\"impact_path\":\"${escaped}\"}"
+          done <<< "${matched}"
+
+          matrix_json="{\"include\":[${entries}]}"
+
+          echo "matrix=${matrix_json}" >> "$GITHUB_OUTPUT"
+          echo "has_matches=true" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Validate and publish (${{ matrix.impact_path }})
+    needs: discover
+    if: needs.discover.outputs.has_matches == 'true'
+    runs-on: ubuntu-latest
+    environment: docs-publish
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate impact document and derive release tag
+        id: validate
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          impact_path="${{ matrix.impact_path }}"
+          schema_path=".releases/cab/impact.schema.json"
+
+          if [ ! -f "${impact_path}" ]; then
+            echo "::error::Impact file not found: ${impact_path} (may have been deleted after the push range was computed)"
+            exit 1
+          fi
+
+          python3 - "$impact_path" "$schema_path" <<'PY'
+          import json
+          import os
+          import sys
+
+          impact_path, schema_path = sys.argv[1], sys.argv[2]
+
+          # 1. Valid JSON
+          with open(impact_path, "r", encoding="utf-8") as f:
+              try:
+                  doc = json.load(f)
+              except json.JSONDecodeError as e:
+                  print(f"::error::{impact_path} is not valid JSON: {e}")
+                  sys.exit(1)
+
+          # 2. Lightweight structural validation against impact.schema.json.
+          #    A full JSON Schema validator (e.g. the `jsonschema` package) is not
+          #    already a dependency of this repo, so this mirrors the schema's
+          #    key constraints (required fields, enum levels, notes-when-non-low)
+          #    without introducing a new dependency stack.
+          errors = []
+          if os.path.exists(schema_path):
+              release = doc.get("release")
+              impact = doc.get("impact")
+              if not isinstance(release, dict):
+                  errors.append("missing or invalid top-level 'release' object")
+              else:
+                  for field in ("tag", "publishedAt", "repository"):
+                      if field not in release:
+                          errors.append(f"'release.{field}' is required")
+
+              if not isinstance(impact, dict):
+                  errors.append("missing or invalid top-level 'impact' object")
+              else:
+                  for category in ("security", "infrastructure", "integrations", "functional"):
+                      entry = impact.get(category)
+                      if not isinstance(entry, dict):
+                          errors.append(f"'impact.{category}' is required")
+                          continue
+                      level = entry.get("level")
+                      if level not in ("low", "medium", "high"):
+                          errors.append(f"'impact.{category}.level' must be one of low/medium/high")
+                      notes = entry.get("notes", [])
+                      if level in ("medium", "high") and not notes:
+                          errors.append(f"'impact.{category}.notes' must be non-empty when level is {level}")
+          else:
+              print(f"::warning::Schema file not found at {schema_path}; skipping structural validation")
+
+          if errors:
+              for e in errors:
+                  print(f"::error::{impact_path}: {e}")
+              sys.exit(1)
+
+          # 3. Derive release tag: prefer the document field, fall back to the
+          #    parent directory name.
+          tag = None
+          if isinstance(doc.get("release"), dict):
+              tag = doc["release"].get("tag")
+          if not tag:
+              tag = os.path.basename(os.path.dirname(impact_path))
+
+          github_output = os.environ["GITHUB_OUTPUT"]
+          with open(github_output, "a", encoding="utf-8") as out:
+              out.write(f"release_tag={tag}\n")
+
+          print(f"Validated {impact_path} - release tag resolved to '{tag}'")
+          PY
+
+      - name: Summarize publish plan
+        shell: bash
+        run: |
+          echo "## Publishing release impact document" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Source: \`${{ matrix.impact_path }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Release tag: \`${{ steps.validate.outputs.release_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Target: external docs system (DOCS_API_URL)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish to external docs system
+        env:
+          DOCS_API_URL: ${{ vars.DOCS_API_URL }}
+          DOCS_API_TOKEN: ${{ secrets.DOCS_API_TOKEN }}
+        run: |
+          chmod +x scripts/publish-impact-docs.sh
+          scripts/publish-impact-docs.sh "${{ matrix.impact_path }}" "${{ steps.validate.outputs.release_tag }}"
