@@ -35,6 +35,6 @@ There are no automated tests in this repo (no test project exists).
   directly to `string[]`.
 
 ## Documentation
-- Always use the `.agents\skills\documentation-writer\` skill when writing or
+- Always use the `.github\skills\documentation-writer\` skill when writing or
   updating documentation for this repo.
 - All generated documentation output must be placed in the `/docs` folder.
