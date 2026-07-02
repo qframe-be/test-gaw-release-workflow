@@ -1,0 +1,29 @@
+{
+  "release": {
+    "tag": "v0.1.0-sample",
+    "previousTag": null,
+    "publishedAt": "2026-07-02T10:00:00Z",
+    "repository": "qframe-be/test-gaw-release-workflow"
+  },
+  "impact": {
+    "security": {
+      "level": "low",
+      "notes": []
+    },
+    "infrastructure": {
+      "level": "low",
+      "notes": []
+    },
+    "integrations": {
+      "level": "low",
+      "notes": []
+    },
+    "functional": {
+      "level": "medium",
+      "notes": [
+        "Initial release: introduces the console app that prints a random Dutch dad joke on each run.",
+        "No breaking changes since this is the first published version."
+      ]
+    }
+  }
+}
