@@ -13,6 +13,7 @@ on:
 # Write access (opening the PR) is handled by the safe-outputs job.
 permissions:
   contents: read
+  copilot-requests: write
 
 # AI engine: Copilot, driven by the custom release-workflow agent file
 # (.github/agents/release-workflow.agent.md)
