@@ -34,6 +34,7 @@ tools:
     - "git tag*"
     - "git describe*"
     - "git show*"
+    - "mkdir*"
 
 # Network access
 network: defaults
