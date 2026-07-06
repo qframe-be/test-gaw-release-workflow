@@ -20,6 +20,8 @@ permissions:
 engine:
   id: copilot
   agent: release-workflow
+  env:
+    COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
 # Tools available to the agent
 tools:
