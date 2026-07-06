@@ -34,7 +34,11 @@ tools:
     - "git tag*"
     - "git describe*"
     - "git show*"
-    - "mkdir*"
+    # Note: directory creation (mkdir and any workaround for it) is not
+    # reliably available in the sandboxed execution environment, so it is
+    # intentionally not allow-listed here. The agent writes new files
+    # directly into the existing .releases/cab/ directory instead of
+    # creating a per-release subdirectory (see release-workflow.agent.md).
 
 # Network access
 network: defaults
@@ -78,11 +82,13 @@ instructions).
 3. Update the documentation under `docs/` to reflect those functional
    changes, applying the documentation-writer skill's Diátaxis principles
    autonomously (no human approval step — this is a CI run).
-4. Generate `.releases/cab/${{ github.event.release.tag_name }}/impact.json`,
-   conforming to `.releases/cab/impact.schema.json`, assessing Security,
-   Infrastructuur, Integraties, and Functioneel impact (`low`/`medium`/`high`)
-   with mandatory non-empty `notes` whenever a category is `medium` or
-   `high`.
+4. Generate `.releases/cab/${{ github.event.release.tag_name }}-impact.json`
+   (a flat file inside the existing `.releases/cab/` directory — do not
+   create a new per-release subdirectory; directory creation is not reliably
+   available in the sandboxed execution environment), conforming to
+   `.releases/cab/impact.schema.json`, assessing Security, Infrastructuur,
+   Integraties, and Functioneel impact (`low`/`medium`/`high`) with mandatory
+   non-empty `notes` whenever a category is `medium` or `high`.
 5. Open a pull request containing the documentation updates and the new
    `impact.json`, with a description summarizing the functional changes and
    the rationale behind each impact level.
