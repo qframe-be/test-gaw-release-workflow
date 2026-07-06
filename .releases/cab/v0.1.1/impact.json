@@ -1,0 +1,38 @@
+{
+  "release": {
+    "tag": "v0.1.1",
+    "previousTag": "v0.1",
+    "publishedAt": "2026-07-06T10:38:49Z",
+    "repository": "qframe-be/test-gaw-release-workflow"
+  },
+  "impact": {
+    "security": {
+      "level": "medium",
+      "notes": [
+        "Authentication mechanism for GitHub Copilot API access changed: removed the COPILOT_GITHUB_TOKEN secret validation pre-check step and switched to permission-based auth using the built-in github.token with 'copilot-requests: write' permission (PR #2).",
+        "COPILOT_GITHUB_TOKEN secret is now explicitly wired into the engine env block in release-workflow.md for fallback compatibility (PR #5).",
+        "S2STOKENS: true environment variable added to agent runner steps to enable server-to-server token authentication."
+      ]
+    },
+    "infrastructure": {
+      "level": "high",
+      "notes": [
+        "New agentics-maintenance.yml workflow added: runs daily (cron 37 0 * * *) to close expired discussions/issues/PRs and clean up stale cache-memory entries; also supports manual maintenance operations (disable, enable, update, upgrade, safe_outputs, etc.).",
+        "release-workflow.lock.yml updated: 'copilot-requests: write' permission added to the copilot and safe-outputs jobs; 'S2STOKENS: true' env var added to agent runner steps; COPILOT_GITHUB_TOKEN secret validation step and its output (secret_verification_result) removed.",
+        "actions-lock.json updated: added 'github/gh-aw-actions/setup-cli@v0.81.6' (SHA ba6380cc6e5be5d21677bebe04d52fb48e3abec7) to support maintenance workflow CLI operations.",
+        "The agentics-maintenance workflow uses ubuntu-slim runners with pinned action SHAs, consistent with the existing release-workflow security posture."
+      ]
+    },
+    "integrations": {
+      "level": "medium",
+      "notes": [
+        "GitHub Copilot API integration updated from broken COPILOT_GITHUB_TOKEN secret-based auth to permission-based auth: the 'copilot-requests: write' workflow permission now grants the built-in github.token the models:read scope required by the Copilot API (PR #2, PR #3).",
+        "The COPILOT_GITHUB_TOKEN secret is still passed to the engine env block as a fallback, maintaining backward compatibility with any external Copilot token configuration (PR #5)."
+      ]
+    },
+    "functional": {
+      "level": "low",
+      "notes": []
+    }
+  }
+}

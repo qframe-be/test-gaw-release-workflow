@@ -93,10 +93,51 @@ for a filled-in example:
 }
 ```
 
+## Workflow permissions and authentication
+
+The `release-workflow` requires the following GitHub Actions permissions to
+run correctly:
+
+| Permission              | Level   | Purpose                                                          |
+|-------------------------|---------|------------------------------------------------------------------|
+| `contents: read`        | read    | Check out the repository to run the git diff and read files.     |
+| `copilot-requests: write` | write | Grants the built-in `github.token` the `models:read` scope so the Copilot AI engine can call the GitHub Copilot API without a separately-provisioned secret. |
+
+In addition, the following repository secrets are referenced by the workflow:
+
+| Secret                  | Required | Purpose                                                            |
+|-------------------------|----------|--------------------------------------------------------------------|
+| `COPILOT_GITHUB_TOKEN`  | optional | Passed to the engine env block as a fallback Copilot token; the `copilot-requests: write` permission is the primary auth mechanism as of v0.1.1. |
+
+> **Note (v0.1.1):** Prior to v0.1.1 the workflow relied on validating
+> `COPILOT_GITHUB_TOKEN` before each run. This validation step was removed
+> and replaced with the `copilot-requests: write` permission-based approach,
+> which uses the built-in `github.token` with the `models:read` scope. The
+> separate `COPILOT_GITHUB_TOKEN` secret is still wired into the engine env
+> for backward compatibility.
+
+## Agentic maintenance
+
+An automated maintenance workflow (`.github/workflows/agentics-maintenance.yml`,
+introduced in v0.1.1) runs daily at 00:37 UTC to keep the agentic
+infrastructure healthy. It:
+
+- **Closes expired entities** — discussions, issues, and pull requests that
+  were created by agentic workflows and have passed their expiry date.
+- **Cleans up stale cache-memory** — removes outdated cache-memory entries
+  used by the agent between runs.
+
+It can also be triggered manually via `workflow_dispatch` with an `operation`
+input to perform one-off tasks such as `update`, `upgrade`, `safe_outputs`,
+`validate`, etc. See the workflow file for the full list of supported
+operations.
+
 ## Related files
 
 - `.github/workflows/release-workflow.md` — the gh-aw workflow definition
-  (trigger, tools, safe-outputs).
+  (trigger, permissions, tools, safe-outputs).
+- `.github/workflows/agentics-maintenance.yml` — daily maintenance workflow
+  for expiring safe outputs and cache-memory cleanup (added in v0.1.1).
 - `.github/agents/release-workflow.agent.md` — the custom agent's detailed,
   autonomous instructions for change analysis, documentation updates, and
   impact scoring.
