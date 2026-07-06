@@ -2,7 +2,7 @@
 #
 # scripts/publish-impact-docs.sh <impact-json-path> <release-tag>
 #
-# Publishes a CAB release impact assessment (.releases/cab/<tag>/impact.json)
+# Publishes a CAB release impact assessment (.releases/cab/<tag>-impact.json)
 # to an external documentation system. Invoked by the
 # .github/workflows/publish-release-impact.yml "publish" job, which runs
 # under the protected `docs-publish` GitHub Environment.

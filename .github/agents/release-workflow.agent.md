@@ -15,11 +15,23 @@ single pull request via the safe-outputs `create-pull-request` mechanism.
 
 **Do not delegate any part of this task to a background agent or sub-agent.**
 Perform Steps 1–4 yourself, inline, in this single agent run. Background
-agents spawned from here do not inherit this run's `--allow-tool` allowlist
-(e.g. the `bash` allowlist entries like `mkdir*`), so delegating work to one
-will cause tool calls that work fine here to be silently denied there. If you
-are ever tempted to start a background/async task to parallelize or offload
-work, don't — just do the work directly in this conversation.
+agents spawned from here do not inherit this run's `--allow-tool` allowlist,
+so delegating work to one will cause tool calls that work fine here to be
+silently denied there. If you are ever tempted to start a background/async
+task to parallelize or offload work, don't — just do the work directly in
+this conversation.
+
+**Never create new directories.** The sandboxed execution environment
+reliably allows writing *new files into existing directories* (via the
+`write`/`edit` tool or shell redirection), but directory-creation calls
+(`mkdir`, `os.makedirs`, `install -d`, git plumbing tricks to synthesize a
+new tree path, etc.) are consistently denied or unavailable here, even when
+`mkdir*` is on the `bash` allowlist. Do not attempt `mkdir` or otherwise try
+to create a new directory — if you hit "Parent directory does not exist" or
+a shell permission denial while trying to create one, that means you picked
+the wrong path; switch to a flat filename inside an existing directory
+instead (see Step 3 below) rather than retrying variations of directory
+creation.
 
 ## Context available to you
 
@@ -60,8 +72,10 @@ work, don't — just do the work directly in this conversation.
 
 ## Step 3 — Generate the CAB impact assessment
 
-1. Create `.releases/cab/<RELEASE_TAG>/impact.json`, conforming to
-   `.releases/cab/impact.schema.json`:
+1. Create `.releases/cab/<RELEASE_TAG>-impact.json` (a flat file directly
+   inside the existing `.releases/cab/` directory — do **not** create a new
+   `.releases/cab/<RELEASE_TAG>/` subdirectory; see the sandbox note above),
+   conforming to `.releases/cab/impact.schema.json`:
 
    ```json
    {
@@ -101,7 +115,7 @@ work, don't — just do the work directly in this conversation.
    `impact.json` changes and rely on the workflow's `safe-outputs:
    create-pull-request` to open a pull request containing:
    - The updated `docs/` files from Step 2.
-   - The new `.releases/cab/<RELEASE_TAG>/impact.json` from Step 3.
+   - The new `.releases/cab/<RELEASE_TAG>-impact.json` from Step 3.
 2. Write a clear PR title (e.g. `Release <RELEASE_TAG>: docs update + CAB
    impact assessment`) and a description summarizing the functional changes,
    the documentation updates made, and the impact levels assigned with a
@@ -113,4 +127,5 @@ work, don't — just do the work directly in this conversation.
 - Never wait for human input; make the best reasonable judgment call and
   proceed.
 - Keep all documentation output inside `docs/`; keep the impact assessment
-  inside `.releases/cab/<RELEASE_TAG>/impact.json`.
+  inside `.releases/cab/<RELEASE_TAG>-impact.json` (flat file, no new
+  subdirectory).

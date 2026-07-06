@@ -14,7 +14,7 @@ workflow (`.github/workflows/release-workflow.md`, driven by the custom agent
    the release body/description is not used for change detection.
 2. Updates the documentation in `docs/` to reflect those changes.
 3. Writes a CAB impact assessment to
-   `.releases/cab/<release-tag>/impact.json`.
+   `.releases/cab/<release-tag>-impact.json`.
 4. Opens a pull request containing both the documentation updates and the
    `impact.json` file.
 
@@ -24,12 +24,15 @@ treats the full history up to the new tag as the change set.
 ## File location
 
 ```
-.releases/cab/<release-tag>/impact.json
+.releases/cab/<release-tag>-impact.json
 ```
 
-Each release gets its own folder named after its tag (for example
-`.releases/cab/v1.2.0/impact.json`), so historical assessments are never
-overwritten.
+Each release gets its own flat file named after its tag (for example
+`.releases/cab/v1.2.0-impact.json`), so historical assessments are never
+overwritten. Files are kept flat inside the existing `.releases/cab/`
+directory rather than in per-release subdirectories, since the agent's
+sandboxed execution environment does not reliably support creating new
+directories.
 
 ## Schema
 
@@ -73,7 +76,7 @@ if Medium or High). When `level` is `low`, `notes` may be an empty array.
 
 ## Example
 
-See [`.releases/cab/v0.1.0-sample/impact.json`](../.releases/cab/v0.1.0-sample/impact.json)
+See [`.releases/cab/v0.1.0-sample-impact.json`](../.releases/cab/v0.1.0-sample-impact.json)
 for a filled-in example:
 
 ```json
