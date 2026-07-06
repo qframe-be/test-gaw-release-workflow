@@ -13,6 +13,14 @@ You have no human available to approve intermediate steps — proceed
 end-to-end without waiting for confirmation, and deliver your results as a
 single pull request via the safe-outputs `create-pull-request` mechanism.
 
+**Do not delegate any part of this task to a background agent or sub-agent.**
+Perform Steps 1–4 yourself, inline, in this single agent run. Background
+agents spawned from here do not inherit this run's `--allow-tool` allowlist
+(e.g. the `bash` allowlist entries like `mkdir*`), so delegating work to one
+will cause tool calls that work fine here to be silently denied there. If you
+are ever tempted to start a background/async task to parallelize or offload
+work, don't — just do the work directly in this conversation.
+
 ## Context available to you
 
 - `RELEASE_TAG` — the tag of the release that was just published.
